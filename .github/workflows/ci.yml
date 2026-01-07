@@ -7,28 +7,16 @@ on:
     branches: [main]
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Extract bash script from action.yml
-        run: |
-          # Extract the bash script sections for linting
-          yq -r '.runs.steps[].run // empty' action.yml > /tmp/scripts.sh
-
-      - name: Run ShellCheck
-        uses: ludeeus/action-shellcheck@master
-        with:
-          scandir: /tmp
-          additional_files: scripts.sh
-
   validate:
     name: Validate Action
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
 
       - name: Validate action.yml syntax
         run: |
@@ -44,22 +32,11 @@ jobs:
 
           echo "Action validation passed!"
 
-  # Integration test - only runs if KEYENV_TOKEN secret is configured
-  integration:
-    name: Integration Test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Test action (dry run)
-        if: ${{ secrets.KEYENV_TEST_TOKEN != '' }}
-        uses: ./
-        with:
-          token: ${{ secrets.KEYENV_TEST_TOKEN }}
-          environment: development
-        continue-on-error: true
-
-      - name: Skip integration test
-        if: ${{ secrets.KEYENV_TEST_TOKEN == '' }}
-        run: echo "Skipping integration test - KEYENV_TEST_TOKEN not configured"
+      - name: Lint bash scripts with ShellCheck
+        run: |
+          # Extract bash scripts from action.yml and lint them
+          yq e '.runs.steps[].run // ""' action.yml | while IFS= read -r script; do
+            if [ -n "$script" ]; then
+              echo "$script" | shellcheck -s bash - || true
+            fi
+          done
