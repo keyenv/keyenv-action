@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Releasing ${VERSION}"
+
+      - name: Update major version tag
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          MAJOR_VERSION=$(echo $VERSION | cut -d. -f1)
+
+          # Delete existing major tag if it exists
+          git tag -d $MAJOR_VERSION 2>/dev/null || true
+          git push origin :refs/tags/$MAJOR_VERSION 2>/dev/null || true
+
+          # Create new major tag pointing to this commit
+          git tag $MAJOR_VERSION
+          git push origin $MAJOR_VERSION
+
+          echo "Updated $MAJOR_VERSION to point to $VERSION"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          make_latest: true

@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract bash script from action.yml
+        run: |
+          # Extract the bash script sections for linting
+          yq -r '.runs.steps[].run // empty' action.yml > /tmp/scripts.sh
+
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: /tmp
+          additional_files: scripts.sh
+
+  validate:
+    name: Validate Action
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate action.yml syntax
+        run: |
+          # Check YAML is valid
+          yq e '.' action.yml > /dev/null
+
+          # Check required fields exist
+          yq e '.name' action.yml | grep -q "KeyEnv"
+          yq e '.description' action.yml | grep -q .
+          yq e '.inputs.token' action.yml | grep -q .
+          yq e '.inputs.environment' action.yml | grep -q .
+          yq e '.runs.using' action.yml | grep -q "composite"
+
+          echo "Action validation passed!"
+
+  # Integration test - only runs if KEYENV_TOKEN secret is configured
+  integration:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test action (dry run)
+        if: ${{ secrets.KEYENV_TEST_TOKEN != '' }}
+        uses: ./
+        with:
+          token: ${{ secrets.KEYENV_TEST_TOKEN }}
+          environment: development
+        continue-on-error: true
+
+      - name: Skip integration test
+        if: ${{ secrets.KEYENV_TEST_TOKEN == '' }}
+        run: echo "Skipping integration test - KEYENV_TEST_TOKEN not configured"

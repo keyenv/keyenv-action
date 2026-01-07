@@ -1,0 +1,224 @@
+name: 'KeyEnv Secrets'
+description: 'Fetch secrets from KeyEnv and inject them into your CI/CD workflow'
+author: 'KeyEnv'
+branding:
+  icon: 'lock'
+  color: 'green'
+
+inputs:
+  token:
+    description: 'KeyEnv service token for authentication'
+    required: true
+  environment:
+    description: 'Environment name to fetch secrets from (e.g., production, staging, development)'
+    required: true
+  project-id:
+    description: 'KeyEnv project ID. Optional if using a project-scoped service token.'
+    required: false
+    default: ''
+  api-url:
+    description: 'KeyEnv API base URL'
+    required: false
+    default: 'https://api.keyenv.dev'
+  export-env:
+    description: 'Export secrets as environment variables for subsequent steps'
+    required: false
+    default: 'true'
+  env-file:
+    description: 'Path to write secrets as a .env file (optional)'
+    required: false
+    default: ''
+  mask-values:
+    description: 'Mask secret values in GitHub Actions logs'
+    required: false
+    default: 'true'
+
+outputs:
+  count:
+    description: 'Number of secrets fetched'
+    value: ${{ steps.fetch-secrets.outputs.count }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.token }}" ]; then
+          echo "::error::Input 'token' is required"
+          exit 1
+        fi
+        if [ -z "${{ inputs.environment }}" ]; then
+          echo "::error::Input 'environment' is required"
+          exit 1
+        fi
+
+        # Mask the token to prevent it from appearing in logs
+        echo "::add-mask::${{ inputs.token }}"
+
+    - name: Fetch secrets from KeyEnv
+      id: fetch-secrets
+      shell: bash
+      env:
+        KEYENV_TOKEN: ${{ inputs.token }}
+        KEYENV_PROJECT_ID: ${{ inputs.project-id }}
+        KEYENV_ENVIRONMENT: ${{ inputs.environment }}
+        KEYENV_API_URL: ${{ inputs.api-url }}
+        KEYENV_EXPORT_ENV: ${{ inputs.export-env }}
+        KEYENV_ENV_FILE: ${{ inputs.env-file }}
+        KEYENV_MASK_VALUES: ${{ inputs.mask-values }}
+      run: |
+        set -euo pipefail
+
+        # Mask the token again in this step
+        echo "::add-mask::${KEYENV_TOKEN}"
+
+        # If no project ID provided, try to get it from the token
+        if [ -z "${KEYENV_PROJECT_ID}" ]; then
+          echo "No project-id provided, fetching from token..."
+
+          USER_RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${KEYENV_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -H "User-Agent: KeyEnv-GitHubAction/1.0" \
+            "${KEYENV_API_URL}/api/v1/users/me" 2>&1) || {
+            echo "::error::Failed to connect to KeyEnv API"
+            exit 1
+          }
+
+          USER_STATUS=$(echo "${USER_RESPONSE}" | tail -n 1)
+          USER_BODY=$(echo "${USER_RESPONSE}" | sed '$d')
+
+          if [ "${USER_STATUS}" -ne 200 ]; then
+            echo "::error::Failed to validate token (HTTP ${USER_STATUS})"
+            exit 1
+          fi
+
+          KEYENV_PROJECT_ID=$(echo "${USER_BODY}" | jq -r '.project_id // empty')
+
+          if [ -z "${KEYENV_PROJECT_ID}" ]; then
+            echo "::error::No project-id provided and token is not project-scoped. Please provide project-id input or use a project-scoped service token."
+            exit 1
+          fi
+
+          echo "Using project from token: ${KEYENV_PROJECT_ID}"
+        fi
+
+        # Construct the API endpoint
+        API_ENDPOINT="${KEYENV_API_URL}/api/v1/projects/${KEYENV_PROJECT_ID}/environments/${KEYENV_ENVIRONMENT}/secrets/export"
+
+        echo "Fetching secrets from KeyEnv..."
+        echo "  Project: ${KEYENV_PROJECT_ID}"
+        echo "  Environment: ${KEYENV_ENVIRONMENT}"
+
+        # Fetch secrets from the API
+        HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" \
+          -H "Authorization: Bearer ${KEYENV_TOKEN}" \
+          -H "Content-Type: application/json" \
+          -H "User-Agent: KeyEnv-GitHubAction/1.0" \
+          "${API_ENDPOINT}" 2>&1) || {
+          echo "::error::Failed to connect to KeyEnv API"
+          exit 1
+        }
+
+        # Extract HTTP status code (last line)
+        HTTP_STATUS=$(echo "${HTTP_RESPONSE}" | tail -n 1)
+        # Extract response body (all but last line)
+        RESPONSE_BODY=$(echo "${HTTP_RESPONSE}" | sed '$d')
+
+        # Check for HTTP errors
+        if [ "${HTTP_STATUS}" -eq 401 ]; then
+          echo "::error::Authentication failed. Please check your KeyEnv token."
+          exit 1
+        elif [ "${HTTP_STATUS}" -eq 403 ]; then
+          echo "::error::Access denied. The token may not have access to this project or environment."
+          exit 1
+        elif [ "${HTTP_STATUS}" -eq 404 ]; then
+          echo "::error::Project or environment not found. Please verify project-id and environment inputs."
+          exit 1
+        elif [ "${HTTP_STATUS}" -ge 400 ]; then
+          echo "::error::KeyEnv API error (HTTP ${HTTP_STATUS}): ${RESPONSE_BODY}"
+          exit 1
+        fi
+
+        # Validate JSON response
+        if ! echo "${RESPONSE_BODY}" | jq -e '.secrets' > /dev/null 2>&1; then
+          echo "::error::Invalid response from KeyEnv API. Expected JSON with 'secrets' array."
+          exit 1
+        fi
+
+        # Count secrets
+        SECRET_COUNT=$(echo "${RESPONSE_BODY}" | jq -r '.secrets | length')
+        echo "count=${SECRET_COUNT}" >> $GITHUB_OUTPUT
+        echo "Successfully fetched ${SECRET_COUNT} secret(s)"
+
+        if [ "${SECRET_COUNT}" -eq 0 ]; then
+          echo "::warning::No secrets found for environment '${KEYENV_ENVIRONMENT}'"
+          exit 0
+        fi
+
+        # Export secrets as environment variables if enabled
+        if [ "${KEYENV_EXPORT_ENV}" = "true" ]; then
+          echo "Exporting secrets as environment variables..."
+
+          # Process each secret
+          echo "${RESPONSE_BODY}" | jq -c '.secrets[]' | while read -r secret; do
+            key=$(echo "${secret}" | jq -r '.key')
+            value=$(echo "${secret}" | jq -r '.value')
+
+            # Mask each secret value if enabled
+            if [ "${KEYENV_MASK_VALUES}" = "true" ]; then
+              echo "::add-mask::${value}"
+            fi
+
+            # Handle multi-line values by using a delimiter
+            if [[ "${value}" == *$'\n'* ]]; then
+              # Multi-line value - use heredoc syntax
+              {
+                echo "${key}<<KEYENV_EOF_${RANDOM}"
+                echo "${value}"
+                echo "KEYENV_EOF_${RANDOM}"
+              } >> $GITHUB_ENV
+            else
+              # Single-line value
+              echo "${key}=${value}" >> $GITHUB_ENV
+            fi
+
+            echo "  Exported: ${key}"
+          done
+        fi
+
+        # Write to .env file if path is specified
+        if [ -n "${KEYENV_ENV_FILE}" ]; then
+          echo "Writing secrets to ${KEYENV_ENV_FILE}..."
+
+          # Ensure parent directory exists
+          mkdir -p "$(dirname "${KEYENV_ENV_FILE}")"
+
+          # Write header
+          {
+            echo "# Generated by KeyEnv GitHub Action"
+            echo "# Environment: ${KEYENV_ENVIRONMENT}"
+            echo "# Generated at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            echo ""
+          } > "${KEYENV_ENV_FILE}"
+
+          # Write each secret in KEY=value format
+          echo "${RESPONSE_BODY}" | jq -c '.secrets[]' | while read -r secret; do
+            key=$(echo "${secret}" | jq -r '.key')
+            value=$(echo "${secret}" | jq -r '.value')
+
+            # Escape special characters for .env format
+            if [[ "${value}" == *$'\n'* ]] || [[ "${value}" == *'"'* ]] || [[ "${value}" == *\'* ]] || [[ "${value}" == *' '* ]]; then
+              # Escape backslashes and double quotes, then wrap in quotes
+              escaped_value=$(printf '%s' "${value}" | sed 's/\\/\\\\/g; s/"/\\"/g')
+              echo "${key}=\"${escaped_value}\"" >> "${KEYENV_ENV_FILE}"
+            else
+              echo "${key}=${value}" >> "${KEYENV_ENV_FILE}"
+            fi
+          done
+
+          echo "Wrote ${SECRET_COUNT} secret(s) to ${KEYENV_ENV_FILE}"
+        fi
+
+        echo "KeyEnv secrets loaded successfully!"
