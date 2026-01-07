@@ -8,7 +8,7 @@ Fetch secrets from [KeyEnv](https://keyenv.dev) and inject them into your GitHub
 - Optionally writes secrets to a `.env` file
 - Automatically masks secret values in logs
 - Supports project-scoped service tokens (no project-id required)
-- Zero dependencies - uses only bash and curl
+- Zero install dependencies - uses bash, curl, and jq (pre-installed on GitHub runners)
 
 ## Usage
 

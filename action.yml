@@ -174,10 +174,11 @@ runs:
             # Handle multi-line values by using a delimiter
             if [[ "${value}" == *$'\n'* ]]; then
               # Multi-line value - use heredoc syntax
+              delimiter="KEYENV_EOF_${RANDOM}"
               {
-                echo "${key}<<KEYENV_EOF_${RANDOM}"
+                echo "${key}<<${delimiter}"
                 echo "${value}"
-                echo "KEYENV_EOF_${RANDOM}"
+                echo "${delimiter}"
               } >> $GITHUB_ENV
             else
               # Single-line value
