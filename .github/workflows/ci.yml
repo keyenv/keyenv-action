@@ -40,3 +40,20 @@ jobs:
               echo "$script" | shellcheck -s bash - || true
             fi
           done
+
+          # Lint library file
+          shellcheck lib/keyenv.sh
+
+  test:
+    name: Run BATS Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install BATS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats
+
+      - name: Run tests
+        run: bats tests/keyenv.bats
