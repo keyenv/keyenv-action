@@ -31,15 +31,22 @@ setup() {
 # API Response Parsing Tests
 # =============================================================================
 
-@test "parse_user_response extracts project_id" {
-  local response='{"id":"user-1","email":"test@example.com","project_id":"proj-123"}'
+@test "parse_user_response extracts first project_id from project_ids array" {
+  local response='{"id":"user-1","email":"test@example.com","project_ids":["proj-123","proj-456"]}'
   run parse_user_response "$response"
   [ "$status" -eq 0 ]
   [ "$output" = "proj-123" ]
 }
 
-@test "parse_user_response returns empty for missing project_id" {
+@test "parse_user_response returns empty for missing project_ids" {
   local response='{"id":"user-1","email":"test@example.com"}'
+  run parse_user_response "$response"
+  [ "$status" -eq 0 ]
+  [ "$output" = "" ]
+}
+
+@test "parse_user_response returns empty for empty project_ids array" {
+  local response='{"id":"user-1","email":"test@example.com","project_ids":[]}'
   run parse_user_response "$response"
   [ "$status" -eq 0 ]
   [ "$output" = "" ]

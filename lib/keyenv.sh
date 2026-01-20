@@ -23,12 +23,12 @@ validate_inputs() {
   return 0
 }
 
-# Parse user response to extract project_id
+# Parse user response to extract project_id from project_ids array
 # Arguments: $1 = JSON response body
-# Returns: project_id or empty string
+# Returns: first project_id or empty string
 parse_user_response() {
   local body="${1:-}"
-  echo "${body}" | jq -r '.project_id // empty'
+  echo "${body}" | jq -r '.project_ids[0] // empty'
 }
 
 # Parse secrets response

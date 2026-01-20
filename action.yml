@@ -77,7 +77,7 @@ runs:
         if [ -z "${KEYENV_PROJECT_ID}" ]; then
           echo "No project-id provided, fetching from token..."
 
-          USER_RESPONSE=$(curl -s -w "\n%{http_code}" \
+          USER_RESPONSE=$(curl -s -m 30 -w "\n%{http_code}" \
             -H "Authorization: Bearer ${KEYENV_TOKEN}" \
             -H "Content-Type: application/json" \
             -H "User-Agent: KeyEnv-GitHubAction/1.0" \
@@ -94,7 +94,7 @@ runs:
             exit 1
           fi
 
-          KEYENV_PROJECT_ID=$(echo "${USER_BODY}" | jq -r '.project_id // empty')
+          KEYENV_PROJECT_ID=$(echo "${USER_BODY}" | jq -r '.project_ids[0] // empty')
 
           if [ -z "${KEYENV_PROJECT_ID}" ]; then
             echo "::error::No project-id provided and token is not project-scoped. Please provide project-id input or use a project-scoped service token."
@@ -112,7 +112,7 @@ runs:
         echo "  Environment: ${KEYENV_ENVIRONMENT}"
 
         # Fetch secrets from the API
-        HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" \
+        HTTP_RESPONSE=$(curl -s -m 30 -w "\n%{http_code}" \
           -H "Authorization: Bearer ${KEYENV_TOKEN}" \
           -H "Content-Type: application/json" \
           -H "User-Agent: KeyEnv-GitHubAction/1.0" \

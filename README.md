@@ -179,13 +179,35 @@ steps:
 1. Go to your KeyEnv dashboard
 2. Navigate to **Settings > Service Tokens**
 3. Create a new token with:
-   - **Scope**: Select your project
+   - **Projects**: Select one or more projects the token should have access to
    - **Permissions**: `secrets:read`
 4. Add the token to your GitHub repository:
    - Go to **Settings > Secrets and variables > Actions**
    - Click **New repository secret**
    - Name: `KEYENV_TOKEN`
    - Value: Your service token
+
+### Multi-Project Tokens
+
+Service tokens can be scoped to multiple projects. When using such a token without specifying a `project-id`:
+
+- The action automatically uses the **first project** associated with the token
+- To use a different project, explicitly provide the `project-id` input
+
+```yaml
+# Uses the first project from the token
+- uses: keyenv/keyenv-action@v1
+  with:
+    token: ${{ secrets.KEYENV_TOKEN }}
+    environment: production
+
+# Explicitly specify a project
+- uses: keyenv/keyenv-action@v1
+  with:
+    token: ${{ secrets.KEYENV_TOKEN }}
+    project-id: proj_second_project
+    environment: production
+```
 
 ## Security
 
