@@ -43,18 +43,21 @@ runs:
   steps:
     - name: Validate inputs
       shell: bash
+      env:
+        INPUT_TOKEN: ${{ inputs.token }}
+        INPUT_ENVIRONMENT: ${{ inputs.environment }}
       run: |
-        if [ -z "${{ inputs.token }}" ]; then
+        if [ -z "${INPUT_TOKEN}" ]; then
           echo "::error::Input 'token' is required"
           exit 1
         fi
-        if [ -z "${{ inputs.environment }}" ]; then
+        if [ -z "${INPUT_ENVIRONMENT}" ]; then
           echo "::error::Input 'environment' is required"
           exit 1
         fi
 
         # Mask the token to prevent it from appearing in logs
-        echo "::add-mask::${{ inputs.token }}"
+        echo "::add-mask::${INPUT_TOKEN}"
 
     - name: Fetch secrets from KeyEnv
       id: fetch-secrets
@@ -173,8 +176,8 @@ runs:
 
             # Handle multi-line values by using a delimiter
             if [[ "${value}" == *$'\n'* ]]; then
-              # Multi-line value - use heredoc syntax
-              delimiter="KEYENV_EOF_${RANDOM}"
+              # Multi-line value - use heredoc syntax with cryptographic random delimiter
+              delimiter="KEYENV_EOF_$(openssl rand -hex 16)"
               {
                 echo "${key}<<${delimiter}"
                 echo "${value}"
