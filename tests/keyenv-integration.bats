@@ -45,7 +45,7 @@ setup() {
         "${KEYENV_API_URL}/api/v1/users/me")
 
     local project_id
-    project_id=$(echo "${user_response}" | jq -r '.project_ids[0] // empty')
+    project_id=$(echo "${user_response}" | jq -r '.data.project_ids[0] // .project_ids[0] // empty')
     [ -n "$project_id" ]
 
     # Fetch secrets for development environment

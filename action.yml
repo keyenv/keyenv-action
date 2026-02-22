@@ -97,7 +97,7 @@ runs:
             exit 1
           fi
 
-          KEYENV_PROJECT_ID=$(echo "${USER_BODY}" | jq -r '.project_ids[0] // empty')
+          KEYENV_PROJECT_ID=$(echo "${USER_BODY}" | jq -r '.data.project_ids[0] // .project_ids[0] // empty')
 
           if [ -z "${KEYENV_PROJECT_ID}" ]; then
             echo "::error::No project-id provided and token is not project-scoped. Please provide project-id input or use a project-scoped service token."
