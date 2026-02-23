@@ -61,7 +61,7 @@ setup() {
     body=$(echo "${response}" | sed '$d')
 
     [ "$http_code" = "200" ]
-    echo "${body}" | jq -e '.secrets' > /dev/null
+    echo "${body}" | jq -e '.data' > /dev/null
 }
 
 @test "non-existent project returns 404" {

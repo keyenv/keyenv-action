@@ -28,7 +28,7 @@ validate_inputs() {
 # Returns: first project_id or empty string
 parse_user_response() {
   local body="${1:-}"
-  echo "${body}" | jq -r '.project_ids[0] // empty'
+  echo "${body}" | jq -r '.data.project_ids[0] // .project_ids[0] // empty'
 }
 
 # Parse secrets response
@@ -37,12 +37,12 @@ parse_user_response() {
 parse_secrets_response() {
   local body="${1:-}"
 
-  if ! echo "${body}" | jq -e '.secrets' > /dev/null 2>&1; then
-    echo "Invalid response: Expected JSON with 'secrets' array" >&2
+  if ! echo "${body}" | jq -e '.data' > /dev/null 2>&1; then
+    echo "Invalid response: Expected JSON with 'data' array" >&2
     return 1
   fi
 
-  echo "${body}" | jq -c '.secrets'
+  echo "${body}" | jq -c '.data'
 }
 
 # Get secret count from response
@@ -50,7 +50,7 @@ parse_secrets_response() {
 # Returns: count as integer
 get_secret_count() {
   local body="${1:-}"
-  echo "${body}" | jq -r '.secrets | length'
+  echo "${body}" | jq -r '.data | length'
 }
 
 # Check if value needs quoting for .env file

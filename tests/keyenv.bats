@@ -31,8 +31,8 @@ setup() {
 # API Response Parsing Tests
 # =============================================================================
 
-@test "parse_user_response extracts first project_id from project_ids array" {
-  local response='{"id":"user-1","email":"test@example.com","project_ids":["proj-123","proj-456"]}'
+@test "parse_user_response extracts first project_id from data envelope" {
+  local response='{"data":{"id":"user-1","email":"test@example.com","project_ids":["proj-123","proj-456"]}}'
   run parse_user_response "$response"
   [ "$status" -eq 0 ]
   [ "$output" = "proj-123" ]
@@ -52,8 +52,8 @@ setup() {
   [ "$output" = "" ]
 }
 
-@test "parse_secrets_response extracts secrets array" {
-  local response='{"secrets":[{"key":"FOO","value":"bar"},{"key":"BAZ","value":"qux"}]}'
+@test "parse_secrets_response extracts data array" {
+  local response='{"data":[{"key":"FOO","value":"bar"},{"key":"BAZ","value":"qux"}]}'
   run parse_secrets_response "$response"
   [ "$status" -eq 0 ]
   [[ "$output" == *"FOO"* ]]
@@ -68,14 +68,14 @@ setup() {
 }
 
 @test "get_secret_count returns correct count" {
-  local response='{"secrets":[{"key":"A","value":"1"},{"key":"B","value":"2"},{"key":"C","value":"3"}]}'
+  local response='{"data":[{"key":"A","value":"1"},{"key":"B","value":"2"},{"key":"C","value":"3"}]}'
   run get_secret_count "$response"
   [ "$status" -eq 0 ]
   [ "$output" = "3" ]
 }
 
 @test "get_secret_count returns zero for empty secrets" {
-  local response='{"secrets":[]}'
+  local response='{"data":[]}'
   run get_secret_count "$response"
   [ "$status" -eq 0 ]
   [ "$output" = "0" ]

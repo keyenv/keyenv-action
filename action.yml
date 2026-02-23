@@ -145,13 +145,13 @@ runs:
         fi
 
         # Validate JSON response
-        if ! echo "${RESPONSE_BODY}" | jq -e '.secrets' > /dev/null 2>&1; then
-          echo "::error::Invalid response from KeyEnv API. Expected JSON with 'secrets' array."
+        if ! echo "${RESPONSE_BODY}" | jq -e '.data' > /dev/null 2>&1; then
+          echo "::error::Invalid response from KeyEnv API. Expected JSON with 'data' array."
           exit 1
         fi
 
         # Count secrets
-        SECRET_COUNT=$(echo "${RESPONSE_BODY}" | jq -r '.secrets | length')
+        SECRET_COUNT=$(echo "${RESPONSE_BODY}" | jq -r '.data | length')
         echo "count=${SECRET_COUNT}" >> $GITHUB_OUTPUT
         echo "Successfully fetched ${SECRET_COUNT} secret(s)"
 
@@ -165,7 +165,7 @@ runs:
           echo "Exporting secrets as environment variables..."
 
           # Process each secret
-          echo "${RESPONSE_BODY}" | jq -c '.secrets[]' | while read -r secret; do
+          echo "${RESPONSE_BODY}" | jq -c '.data[]' | while read -r secret; do
             key=$(echo "${secret}" | jq -r '.key')
             value=$(echo "${secret}" | jq -r '.value')
 
@@ -208,7 +208,7 @@ runs:
           } > "${KEYENV_ENV_FILE}"
 
           # Write each secret in KEY=value format
-          echo "${RESPONSE_BODY}" | jq -c '.secrets[]' | while read -r secret; do
+          echo "${RESPONSE_BODY}" | jq -c '.data[]' | while read -r secret; do
             key=$(echo "${secret}" | jq -r '.key')
             value=$(echo "${secret}" | jq -r '.value')
 
